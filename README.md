@@ -9,7 +9,7 @@ A professional ROS 2 system that bridges real-time IMU data from a mobile phone 
 ### 1. Build
 ```bash
 # Clone and build
-git clone <repo_url> ~/phone_imu_ws/src
+git clone https://github.com/harsha200628/phone_imu_ros2.git~/phone_imu_ws/src
 cd ~/phone_imu_ws
 colcon build --packages-select phone_imu_ws_server
 source install/setup.bash
