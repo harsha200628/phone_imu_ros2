@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber-IMU Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #7000ff;
+            --bg: #050505;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --glass: rgba(255, 255, 255, 0.1);
+            --text: #e0e0e0;
+            --glow: 0 0 15px var(--primary);
+            --danger: #ff3366;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 10px;
+            font-family: 'Rajdhani', sans-serif;
+            background: var(--bg);
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(112, 0, 255, 0.1) 0%, transparent 80%),
+                linear-gradient(to bottom, #050505, #101018);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            margin: 15px 0 5px 0;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #secure-alert {
+            width: 100%;
+            max-width: 450px;
+            background: rgba(255, 51, 102, 0.15);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            margin-bottom: 15px;
+            display: none;
+            text-align: center;
+        }
+
+        .dashboard {
+            width: 100%;
+            max-width: 450px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(5px);
+            border: 1px solid var(--glass);
+            border-radius: 12px;
+            padding: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; width: 3px; height: 100%;
+            background: var(--primary);
+            box-shadow: var(--glow);
+        }
+
+        .card.wide { grid-column: span 2; }
+        .card-label { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-bottom: 8px; }
+
+        .value-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .acc-grid { grid-template-columns: repeat(3, 1fr); }
+
+        .val-num { font-family: 'Orbitron', monospace; font-size: 0.95rem; color: #fff; display: block; }
+        .val-name { font-size: 0.6rem; color: #555; }
+
+        #btn-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 1000; transition: opacity 0.5s;
+        }
+
+        .init-btn {
+            padding: 18px 35px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            border: none; border-radius: 50px; margin: 10px;
+            cursor: pointer; font-weight: bold; text-transform: uppercase;
+        }
+
+        #btn-main {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: #000; box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+        }
+
+        #btn-mock {
+            background: transparent; border: 1px solid var(--glass);
+            color: #888; font-size: 0.8rem;
+        }
+
+        #console {
+            width: 100%; max-width: 450px; height: 100px;
+            background: rgba(0,0,0,0.5); border: 1px solid var(--glass);
+            border-radius: 10px; margin-top: 15px; padding: 8px;
+            font-family: monospace; font-size: 0.65rem; color: #00ff88;
+            overflow-y: auto; white-space: pre-wrap;
+        }
+
+        .hidden { opacity: 0; pointer-events: none; }
+    </style>
+</head>
+
+<body>
+
+    <div id="btn-overlay">
+        <h1>Link Status: OFFLINE</h1>
+        <button id="btn-main" class="init-btn" onclick="requestSensors()">Initiate Link</button>
+        <button id="btn-mock" class="init-btn" onclick="startMockMode()">Test with Mock Data</button>
+        <p style="margin-top: 15px; font-size: 0.8rem; color: #444; text-align: center; max-width: 80%;">
+            Tap "Initiate Link" to grant sensor access.<br>If values stay zero, your browser is blocking sensors.
+        </p>
+    </div>
+
+    <div id="secure-alert">
+        <strong>⚠️ INSECURE CONTEXT (HTTP)</strong><br>
+        Most mobile browsers block sensors on non-HTTPS sites.<br>
+        Go to <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> and add your computer's IP.
+    </div>
+
+    <h1>Cyber-IMU</h1>
+
+    <div id="status-container" style="width: 100%; max-width: 450px; padding: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass); margin-bottom: 15px;">
+        <div id="status-text" class="disconnected" style="font-weight: 700; font-size: 0.8rem;">DISCONNECTED</div>
+        <div id="frequency" style="font-size: 0.8rem; color: #555;">0 Hz</div>
+    </div>
+
+    <div class="dashboard">
+        <div class="card wide">
+            <div class="card-label">Orientation / Quaternion</div>
+            <div class="value-grid">
+                <div><span class="val-name">QX</span><span id="qx" class="val-num">0.000</span></div>
+                <div><span class="val-name">QY</span><span id="qy" class="val-num">0.000</span></div>
+                <div><span class="val-name">QZ</span><span id="qz" class="val-num">0.000</span></div>
+                <div><span class="val-name">QW</span><span id="qw" class="val-num">1.000</span></div>
+            </div>
+        </div>
+
+        <div class="card wide">
+            <div class="card-label">Linear Acceleration (m/s²)</div>
+            <div class="value-grid acc-grid">
+                <div><span class="val-name">AX</span><span id="ax" class="val-num">0.00</span></div>
+                <div><span class="val-name">AY</span><span id="ay" class="val-num">0.00</span></div>
+                <div><span class="val-name">AZ</span><span id="az" class="val-num">0.00</span></div>
+            </div>
+        </div>
+
+        <div class="card wide">
+            <div class="card-label">Controls</div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 5px;">
+                    <input type="checkbox" id="inv-p" checked> Mirror Pitch
+                </label>
+            </div>
+        </div>
+
+        <div class="card wide">
+            <div class="card-label">Angular Velocity (rad/s)</div>
+            <div class="value-grid acc-grid">
+                <div><span class="val-name">GX</span><span id="gx" class="val-num">0.00</span></div>
+                <div><span class="val-name">GY</span><span id="gy" class="val-num">0.00</span></div>
+                <div><span class="val-name">GZ</span><span id="gz" class="val-num">0.00</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="console">Diagnostics: Initializing...</div>
+
+    <script>
+        const diag = document.getElementById("console");
+        function log(m) {
+            diag.textContent += `\n> ${m}`;
+            diag.scrollTop = diag.scrollHeight;
+            console.log(m);
+        }
+
+        if (!window.isSecureContext) document.getElementById("secure-alert").style.display = "block";
+        log("Secure Context: " + window.isSecureContext);
+
+        const WS_URL = `ws://${location.hostname}:8765`;
+        let socket = null;
+        let msgCount = 0, lastTime = Date.now();
+        let mockMode = false;
+
+        const state = { qx: 0, qy: 0, qz: 0, qw: 1, ax: 0, ay: 0, az: 0, gx: 0, gy: 0, gz: 0 };
+
+        function connect() {
+            log("Opening link: " + WS_URL);
+            socket = new WebSocket(WS_URL);
+            socket.onopen = () => {
+                log("Link established.");
+                document.getElementById("status-text").textContent = "LINK ACTIVE";
+                document.getElementById("status-text").className = "connected";
+            };
+            socket.onclose = () => {
+                log("Link lost. Retrying...");
+                document.getElementById("status-text").textContent = "OFFLINE";
+                document.getElementById("status-text").className = "disconnected";
+                setTimeout(connect, 3000);
+            };
+            socket.onerror = () => socket.close();
+        }
+        connect();
+
+        function updateUI() {
+            for (let k in state) {
+                const el = document.getElementById(k);
+                if (el) el.textContent = state[k].toFixed(k.startsWith('q') ? 3 : 2);
+            }
+        }
+
+        setInterval(() => {
+            if (mockMode) {
+                const t = Date.now() / 1000;
+                state.qx = Math.sin(t);
+                state.qy = Math.cos(t);
+                state.ax = Math.sin(t*2) * 5;
+            }
+            if (socket && socket.readyState === 1) {
+                socket.send(JSON.stringify(state));
+                msgCount++;
+                updateUI();
+            }
+        }, 20);
+
+        setInterval(() => {
+            const now = Date.now();
+            document.getElementById("frequency").textContent = Math.round(msgCount / (now - lastTime) * 1000) + " Hz";
+            msgCount = 0; lastTime = now;
+        }, 1000);
+
+        function startMockMode() {
+            log("ENTERING MOCK DATA MODE");
+            mockMode = true;
+            document.getElementById("btn-overlay").classList.add("hidden");
+        }
+
+        async function requestSensors() {
+            log("Requesting sensors...");
+            document.getElementById("btn-overlay").classList.add("hidden");
+
+            // iOS 13+ permission request
+            if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+                try {
+                    const res = await DeviceOrientationEvent.requestPermission();
+                    log("Permission: " + res);
+                    if (res !== 'granted') return alert("Permission denied.");
+                } catch (e) { log("Error: " + e); }
+            }
+
+            // Start legacy listeners
+            window.addEventListener("deviceorientation", (e) => {
+                const invP = document.getElementById("inv-p").checked;
+                
+                const a = (e.alpha||0)*Math.PI/180;
+                const b = (invP ? -1 : 1) * (e.beta||0)*Math.PI/180;
+                const g = (e.gamma||0)*Math.PI/180;
+                
+                const cy=Math.cos(a/2), sy=Math.sin(a/2), cp=Math.cos(b/2), sp=Math.sin(b/2), cr=Math.cos(g/2), sr=Math.sin(g/2);
+                state.qw=cr*cp*cy+sr*sp*sy; state.qx=sr*cp*cy-cr*sp*sy; state.qy=cr*sp*cy+sr*cp*sy; state.qz=cr*cp*sy-sr*sp*cy;
+            }, true);
+
+            window.addEventListener("devicemotion", (e) => {
+                const acc = e.acceleration || e.accelerationIncludingGravity;
+                if (acc) { state.ax=acc.x||0; state.ay=acc.y||0; state.az=acc.z||0; }
+                if (e.rotationRate) {
+                    const d2r = Math.PI/180;
+                    state.gx=(e.rotationRate.beta||0)*d2r; state.gy=(e.rotationRate.gamma||0)*d2r; state.gz=(e.rotationRate.alpha||0)*d2r;
+                }
+            }, true);
+
+            log("Listeners active. Checking for data...");
+            setTimeout(() => {
+                if (state.qx === 0 && state.qw === 1 && !mockMode) {
+                    log("!! ZERO DATA DETECTED !!");
+                    log("Your phone is blocking sensor access.");
+                } else {
+                    log("DATA FLOWING!");
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

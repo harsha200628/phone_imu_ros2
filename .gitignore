@@ -1,0 +1,23 @@
+# ROS 2 build artifacts
+build/
+install/
+log/
+
+# Zip files
+src.zip
+src/phone_imu_ws_server.zip
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local IDE/System files
+.vscode/
+.idea/
+.DS_Store
+*.swp
